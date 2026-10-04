@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -37,6 +40,8 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    environment: production
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
       - name: Download artifact
@@ -44,5 +49,20 @@ jobs:
         with:
           name: rechner-artifact
 
-      - name: Show downloaded artifact
-        run: ls -la
+      - name: Use deploy secret
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: |
+          if [ -n "$DEPLOY_TOKEN" ]; then
+            echo "Deploy secret is configured"
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v1.0.${{ github.run_number }}" \
+            rechner.zip \
+            --repo "${{ github.repository }}" \
+            --title "Release v1.0.${{ github.run_number }}" \
+            --notes "Automated release from CI/CD pipeline"

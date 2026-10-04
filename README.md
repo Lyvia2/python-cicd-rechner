@@ -1,113 +1,43 @@
 # Python CI/CD Rechner
 
-## Projektbeschreibung
+## Was macht das Projekt?
 
-Dieses Projekt ist ein kleines Python-Projekt zur Demonstration einer vollständigen CI/CD-Pipeline mit GitHub Actions.
+Dieses Projekt ist eine kleine Python-Anwendung mit einfachen mathematischen Funktionen für Summe, Durchschnitt und Prozentberechnung.
 
-Die Anwendung stellt einfache mathematische Funktionen zur Verfügung. Die Pipeline führt automatisierte Tests aus, erstellt ein Build-Artefakt und veröffentlicht dieses anschließend automatisch als GitHub Release.
+Das Ziel des Projekts ist die Umsetzung einer CI/CD-Pipeline mit GitHub Actions. Die Anwendung wird automatisch getestet, als ZIP-Datei gebaut und anschließend über eine GitHub Release veröffentlicht.
 
----
+## Pipeline im Überblick
 
-## Funktionen der Anwendung
+Die Pipeline besteht aus zwei Jobs: `test` und `deploy`.
 
-Die Anwendung enthält folgende mathematische Funktionen:
+### Job: test
 
-- Summe
-- Durchschnitt
-- Prozentberechnung
+Der `test`-Job führt folgende Schritte aus:
 
-Der Quellcode befindet sich in:
+1. Repository mit `actions/checkout` auschecken
+2. Python 3.12 einrichten
+3. Pip-Cache verwenden
+4. Dependencies aus `requirements.txt` installieren
+5. Automatisierte Tests mit `pytest` ausführen
+6. `rechner.zip` erstellen
+7. ZIP-Datei als Artifact hochladen
 
-```text
-src/rechner.py
-```
+Der Cache verwendet `hashFiles('requirements.txt')`. Dadurch kann bei Änderungen der Dependencies ein neuer Cache erzeugt werden.
 
-Die automatisierten Tests befinden sich in:
+### Job: deploy
 
-```text
-tests/test_rechner.py
-```
+Der `deploy`-Job ist mit `needs: test` vom erfolgreichen `test`-Job abhängig.
 
----
+Er führt folgende Schritte aus:
 
-## Projektstruktur
+1. Artifact `rechner.zip` herunterladen
+2. Environment `production` verwenden
+3. `DEPLOY_TOKEN` und `DEPLOY_TARGET` verwenden
+4. Auf die Freigabe des Production-Deployments warten
+5. Eine GitHub Release erstellen
+6. `rechner.zip` als Release-Asset veröffentlichen
 
-```text
-python-cicd-rechner/
-├── .github/
-│   └── workflows/
-│       └── pipeline.yml
-├── src/
-│   └── rechner.py
-├── tests/
-│   └── test_rechner.py
-├── .gitignore
-├── README.md
-└── requirements.txt
-```
-
----
-
-## Lokale Installation
-
-Zuerst wird eine virtuelle Python-Umgebung erstellt:
-
-```bash
-python3 -m venv .venv
-```
-
-Unter macOS oder Linux wird sie folgendermaßen aktiviert:
-
-```bash
-source .venv/bin/activate
-```
-
-Danach werden die benötigten Abhängigkeiten installiert:
-
-```bash
-python -m pip install -r requirements.txt
-```
-
----
-
-## Tests lokal ausführen
-
-Die automatisierten Tests werden mit `pytest` ausgeführt:
-
-```bash
-python -m pytest -v
-```
-
-Das Projekt enthält Tests für:
-
-- `summe`
-- `durchschnitt`
-- `prozent`
-
-Alle Tests müssen erfolgreich sein, bevor das Deployment durchgeführt werden kann.
-
----
-
-## CI/CD-Pipeline
-
-Die CI/CD-Pipeline wird mit GitHub Actions umgesetzt.
-
-Die Workflow-Datei befindet sich unter:
-
-```text
-.github/workflows/pipeline.yml
-```
-
-Die Pipeline wird automatisch bei folgenden Ereignissen gestartet:
-
-- Push auf den Branch `main`
-- Pull Request auf den Branch `main`
-
----
-
-## Aufbau der Pipeline
-
-Die Pipeline besteht aus zwei Jobs:
+Die Pipeline läuft in folgender Reihenfolge:
 
 ```text
 Push / Pull Request
@@ -115,103 +45,61 @@ Push / Pull Request
         v
       test
         |
-        | Tests erfolgreich
         v
-   Build ZIP
+   Tests + Build
         |
         v
- Upload Artifact
+  Artifact Upload
         |
         v
       deploy
         |
         v
- Download Artifact
+ Artifact Download
         |
         v
- Production Environment
+ Production-Freigabe
         |
         v
- GitHub Release
+   GitHub Release
 ```
 
----
+Die Berechtigungen sind eingeschränkt. Standardmäßig wird `contents: read` verwendet. Der `deploy`-Job erhält zusätzlich die benötigten Rechte für die Erstellung der Release.
 
-## Job 1: test
+## Trigger
 
-Der erste Job führt die Continuous-Integration-Schritte aus.
+Die Pipeline startet automatisch bei:
 
-Er führt folgende Aktionen durch:
+- einem Push auf den Branch `main`
+- einem Pull Request auf den Branch `main`
 
-1. Repository mit `actions/checkout` laden
-2. Python installieren
-3. Abhängigkeiten aus `requirements.txt` installieren
-4. Automatisierte Tests mit `pytest` ausführen
-5. Build als ZIP-Datei erstellen
-6. ZIP-Datei als GitHub Actions Artifact hochladen
+Das Deployment wird nur bei einem Push auf `main` ausgeführt.
 
-Die erzeugte Datei heißt:
-
-```text
-rechner.zip
-```
-
-Wenn die Tests fehlschlagen, wird der nachfolgende Deploy-Job nicht ausgeführt.
-
----
-
-## Artifact
-
-Nach erfolgreichen Tests wird ein Build erstellt:
-
-```text
-rechner.zip
-```
-
-Das ZIP-Archiv enthält den Quellcode der Anwendung und wird mit `actions/upload-artifact` als Artifact gespeichert.
-
-Der Deploy-Job lädt dasselbe Artifact anschließend mit `actions/download-artifact` herunter.
-
-Dadurch wird das Build-Ergebnis zwischen den Jobs weitergegeben.
-
----
-
-## Job 2: deploy
-
-Der zweite Job ist für das Deployment verantwortlich.
-
-Er ist vom erfolgreichen Test-Job abhängig:
-
-```yaml
-needs: test
-```
-
-Der Deploy-Job:
-
-1. lädt das zuvor erzeugte Artifact herunter,
-2. verwendet das Environment `production`,
-3. verwendet das konfigurierte Secret `DEPLOY_TOKEN`,
-4. wartet auf die Freigabe des Production-Deployments,
-5. erstellt eine GitHub Release,
-6. veröffentlicht `rechner.zip` als Release-Asset.
-
----
-
-## Deployment-Bedingung
-
-Das Deployment wird nur bei einem Push auf den Branch `main` ausgeführt.
-
-Die Bedingung im Workflow lautet:
+Dafür wird folgende Bedingung verwendet:
 
 ```yaml
 if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 ```
 
-Bei einem Pull Request können die Tests ausgeführt werden, aber das Production-Deployment wird übersprungen.
+Bei einem Pull Request kann der `test`-Job ausgeführt werden, während das Production-Deployment übersprungen wird.
 
----
+## Secrets und Environment
 
-## Environment
+Für das Projekt wird folgendes Secret verwendet:
+
+```text
+DEPLOY_TOKEN
+```
+
+Der Wert des Secrets wird nicht im Repository gespeichert und nicht in den Logs ausgegeben.
+
+Zusätzlich wird folgende Repository Variable verwendet:
+
+```text
+DEPLOY_TARGET
+```
+
+Sie enthält das Deployment-Ziel `staging`.
 
 Für das Deployment wird das GitHub Environment
 
@@ -221,87 +109,62 @@ production
 
 verwendet.
 
-Für dieses Environment wurde eine Deployment Protection Rule konfiguriert.
+Das Environment besitzt eine Protection Rule mit erforderlicher Freigabe vor dem Deployment. Das Deployment ist außerdem auf den Branch `main` beschränkt.
 
-Das Production-Deployment benötigt eine Freigabe, bevor der Deploy-Job fortgesetzt werden kann.
+## Deployment
 
-Zusätzlich ist das Deployment auf den Branch `main` beschränkt.
-
----
-
-## Secret
-
-Für das Projekt wurde folgendes Secret konfiguriert:
-
-```text
-DEPLOY_TOKEN
-```
-
-Das Secret wird über GitHub Actions verwendet.
-
-Der Wert des Secrets wird weder im Repository gespeichert noch in den Workflow-Logs ausgegeben.
-
-Im Workflow wird lediglich geprüft, ob das Secret verfügbar ist.
-
----
-
-## GitHub Release
-
-Nach erfolgreichen Tests und der Freigabe des Production-Deployments erstellt die Pipeline automatisch eine GitHub Release.
-
-Die Release wird mit GitHub CLI erstellt.
-
-Beispiel:
-
-```bash
-gh release create
-```
-
-Die erzeugte Datei
+Nach erfolgreichen Tests erstellt die Pipeline das Build-Artefakt:
 
 ```text
 rechner.zip
 ```
 
-wird als Release-Asset veröffentlicht.
+Dieses wird zunächst als GitHub Actions Artifact gespeichert.
 
----
+Der `deploy`-Job lädt dasselbe Artifact wieder herunter. Nach der Freigabe des Environments `production` erstellt die Pipeline automatisch eine GitHub Release.
 
-## Verwendete Technologien
+`rechner.zip` wird dabei als Release-Asset veröffentlicht.
 
-- Python
-- pytest
-- Git
-- GitHub
-- GitHub Actions
-- YAML
-- GitHub CLI
-- CI/CD
+Das erfolgreiche Deployment kann auf der Releases-Seite des GitHub-Repositories überprüft werden.
 
----
+## Lokal ausführen
 
-## Zusammenfassung
+Virtuelle Python-Umgebung erstellen:
 
-Dieses Projekt demonstriert einen vollständigen einfachen CI/CD-Prozess:
-
-```text
-Code
-  ↓
-Git Push
-  ↓
-GitHub Actions
-  ↓
-Automatisierte Tests
-  ↓
-Build
-  ↓
-Artifact
-  ↓
-Production-Freigabe
-  ↓
-Deployment
-  ↓
-GitHub Release
+```bash
+python3 -m venv .venv
 ```
 
-Damit werden Tests, Build, Artifact-Weitergabe und Deployment automatisiert über GitHub Actions durchgeführt.
+Virtuelle Umgebung unter macOS/Linux aktivieren:
+
+```bash
+source .venv/bin/activate
+```
+
+Dependencies installieren:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Tests ausführen:
+
+```bash
+python -m pytest -v
+```
+
+Build lokal erstellen:
+
+```bash
+zip -r rechner.zip src README.md
+```
+
+Die Anwendung enthält drei automatisierte Tests für die Funktionen `summe`, `durchschnitt` und `prozent`.
+
+## Abschluss-Challenge
+
+Die sechs Probleme der Abschluss-Challenge sowie ihre Ursachen und Lösungen sind separat dokumentiert in:
+
+```
+ABSCHLUSS_CHALLENGE.md
+```

@@ -6,8 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  PYTHON_VERSION: "3.12"
+  ARTIFACT_NAME: rechner-artifact
+
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -20,7 +24,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
@@ -34,7 +46,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rechner-artifact
+          name: ${{ env.ARTIFACT_NAME }}
           path: rechner.zip
 
   deploy:
@@ -43,19 +55,25 @@ jobs:
     environment: production
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
+    permissions:
+      contents: write
+      actions: read
+
     steps:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: rechner-artifact
+          name: ${{ env.ARTIFACT_NAME }}
 
       - name: Use deploy secret
         env:
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET }}
         run: |
           if [ -n "$DEPLOY_TOKEN" ]; then
             echo "Deploy secret is configured"
           fi
+          echo "Deployment target: $DEPLOY_TARGET"
 
       - name: Create GitHub Release
         env:
